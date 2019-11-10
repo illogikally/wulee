@@ -1,19 +1,18 @@
-#include <iostream>
-#include <string>
-#include <vector>
+#include <stdio.h>
+#include <string.h>
 #include <time.h>
-
-using namespace std;
+#include <stdlib.h>
+#include <stdint.h>
+#include <math.h>
 
 #pragma pack(1)
 typedef struct {
-    uint16_t bfType;
-    uint32_t bfSize;
-    uint16_t bfReserved1;
-    uint16_t bfReserved2;
-    uint32_t bfOffBits;
-
-    uint32_t biSize;
+	uint16_t bfType;
+	uint32_t bfSize;
+	uint16_t bfReserved1;
+	uint16_t bfReserved2;
+	uint32_t bfOffBits;
+	uint32_t biSize;
     uint32_t biWidth;
     uint32_t biHeight;
     uint16_t biPlanes;
@@ -24,228 +23,266 @@ typedef struct {
     uint32_t biYPelsPerMeter;
     uint32_t biClrUsed;
     uint32_t biClrImportant;
-  
     uint64_t ClrPallete;
 } BITMAPHEADER;
 
-BITMAPHEADER imgHeader;
-const int    BLOCK_SIZE = 3;
+BITMAPHEADER imgHeader; 
+int bWidth, bHeight; //Stego-block size
+int imgWidth;
+int imgHeight;
+int imgDataWidth;
+uint16_t mSize; //Message size in bit
 
-vector<vector<uint8_t>> blockAndKey(vector<vector<uint8_t>>, vector<vector<uint8_t>>);
-vector<vector<uint8_t>> extractImgData(uint8_t*);
-vector<vector<uint8_t>> readImage(char*);
-vector<vector<uint8_t>> extractBlock(vector<vector<uint8_t>>, int);
-string                  readMessage(string);
-string                  decode(vector<vector<uint8_t>>, vector<vector<uint8_t>>);
-void                    encode(vector<vector<uint8_t>>, vector<vector<uint8_t>>, string);
-void                    bitComplement(vector<vector<uint8_t>>, vector<vector<uint8_t>>, vector<vector<uint8_t>>&,  int, int);
-void                    writeImage(vector<vector<uint8_t>>);
-int                     checkSum(vector<vector<uint8_t>>);
+void prints(char*);
+void writeImg(uint8_t*);
+uint8_t* readImg(char*);
+uint8_t* binConvert(char*);
+int sum(uint8_t*);
+uint8_t* extract(uint8_t*, int);
+uint8_t* bAndK(uint8_t*, uint8_t*);
+void complement(uint8_t*, uint8_t*, int);
+void encode(uint8_t*, uint8_t*, uint8_t*);
+char* decode(uint8_t*, uint8_t*);
+uint8_t* getKey(char*);
 
+int main(int argc, uint8_t **argv) {
+	if (argc >= 3 && argc <= 4) {
+		uint8_t *imgData = readImg(argv[1]);
+		uint8_t *key = getKey(argv[2]);	
+		if(key == NULL || imgData == NULL) return -1;
 
-int main(int argc, char** argv) {  
-    vector<vector<uint8_t>> key{{0, 1, 0},
-                                {1, 1, 1},
-                                {0, 1, 0}};
-    if (argc == 1) {
-        cout << endl << "\n --ENCODE: *.exe [PATH] [MESSAGE]\n\n[PATH]\t\tCover image path.\n[MESSAGE]\tSecret message.\n\n --DECODE: *.exe [PATH]\n\n[PATH]\t\tStego image path." << endl;
-        return 0;
-    }
-    else if (argc > 1) {
-        vector<vector<uint8_t>> imgData  = readImage(argv[1]);
-        if (imgHeader.biBitCount == 0) {
-            cout << endl << "Can't open the file!" << endl;
-            return 0;
-        } else if(imgHeader.biBitCount != 1) {
-            cout << endl << "The file is not a monochrome bitmap!" << endl;
-            return 0;
-        }
-        if (argc == 2) {
-            cout << endl << decode(imgData, key) << endl;
-        }
-        else if (argc == 3) {
-            string binaryMessage = readMessage(string(argv[2]));
-            if(binaryMessage.size() > (imgData.size() / BLOCK_SIZE) * (imgData.at(0).size() / BLOCK_SIZE)) {
-                cout << endl << "The message is too large, please choose a higher resolution image!" << endl;
-                return 0;
-            }
-            encode(imgData, key, binaryMessage);
-        }
-        else {
-            cout << endl << "Too many arguments!" << endl;
-            cout << endl << "\n --ENCODE: *.exe [PATH] [MESSAGE]\n\n[PATH]\t\tCover image path.\n[MESSAGE]\tSecret message.\n\n --DECODE: *.exe [PATH]\n\n[PATH]\t\tStego image path." << endl;
-        }
-    
-    }
-    return 0;
+		if(argc == 3) {
+			prints(decode(imgData, key));
+		}
+		else if(argc == 4) {
+			uint8_t *binMes = binConvert(argv[3]);
+			encode(imgData, key, binMes);
+		}
+	}
+	else {
+		printf("Usage: [PATH] [KEYSTRING] [MESSAGE].\n \
+			    \n  - [PATH]: Path to cover/stego-image. \
+			    \n  - [KEYSTRING]: Key with comma-separated height-suffix. Ex: \"3,000111101010\". \
+			    \n  - [MESSAGE]: Message to conceal."); 
+	}
+ 	return 0;
+}
+
+void prints(char *s) {
+	for(int i = 0; i < strlen(s); ++i) {
+		printf("%c", s[i]);
+	}
+	return;
+}
+
+uint8_t* readImg(char *imgPath) {
+	FILE *img = fopen(imgPath, "rb");
+	if(img == NULL) {
+		printf("Can't open the image, make sure the path is correct.");
+		return NULL;
+	}
+
+	fread(&imgHeader, sizeof(BITMAPHEADER), 1, img);
+	if(imgHeader.biBitCount != 1) {
+		printf("The given file is not a monochrome bitmap.");
+		return NULL;
+	}
+
+    imgHeight = imgHeader.biHeight;
+    imgWidth  = imgHeader.biWidth;
+	int rowSize = (imgWidth + 31) / 32 * 4;
+	int imgDataSize = rowSize * imgHeight;
+	uint8_t imgDataRaw[imgDataSize];
+	uint8_t *imgData = (uint8_t*)malloc(imgDataSize * 8);
+
+	fread(imgDataRaw, imgDataSize, 1, img);
+
+	imgDataWidth = rowSize * 8;
+	for(int i = 0; i < imgHeight; ++i) {
+		for(int j = 0; j < imgDataWidth; ++j) {
+			imgData[i*imgDataWidth + j] = (imgDataRaw[i*rowSize + j/8] >> (7-j % 8)) & 1;
+		}
+	}
+	fclose(img);
+	return imgData;
+}
+
+void writeImg(uint8_t *imgData) {
+	FILE* img = fopen("output.bmp", "wb");
+	
+	int rowSize = (imgWidth + 31) / 32 * 4;
+	int imgDataSize = rowSize * imgHeight;
+	uint8_t *imgDataRaw = (uint8_t*)calloc(imgDataSize, 1);
+
+	//Convert image data to bit
+	for(int i = 0; i < imgHeight; ++i) {
+		for(int j = 0; j < imgDataWidth; ++j) {
+			imgDataRaw[i*rowSize + j/8] |= imgData[i*imgDataWidth + j] << (7-j % 8);
+		}
+	}
+	fwrite(&imgHeader, sizeof(BITMAPHEADER), 1, img);
+	fwrite(imgDataRaw, sizeof(uint8_t), imgDataSize, img);
+	fclose(img);
+	free(imgDataRaw);
+	return;
+}
+
+uint8_t* binConvert(char *message) {
+	mSize = strlen(message) * 8;
+	uint8_t *bMessage = (uint8_t*)malloc(mSize);
+
+	for(int i = 0; i < mSize; ++i) {
+		bMessage[i] = (message[i/8] >> (7-i % 8)) & 1;
+	}
+	return bMessage;
+}
+
+int sum(uint8_t *block) {
+	int sum = 0;
+	for(int i = 0; i < bHeight; ++i) {
+		for(int j = 0; j < bWidth; ++j) {
+			sum += block[i*bWidth + j] & 1;
+		}
+	}
+	return sum;
+}
+
+uint8_t* extract(uint8_t *imgData, int curBlock) {
+	uint8_t *block = (uint8_t*)malloc(bHeight*bWidth);
+	for(int i = 0; i < bHeight; ++i) {
+		for(int j = 0; j < bWidth; ++j) {
+			int pNBlockHor = imgDataWidth / bWidth; //Possible number of blocks horizontally
+			int verPos = bHeight * (curBlock / pNBlockHor) + i; //Vertical pos
+			int horPos = bWidth * (curBlock % pNBlockHor) + j; //Horizontal pos
+			block[i*bWidth + j] = imgData[verPos*imgDataWidth + horPos];
+		}
+	}
+	return block;
+}
+
+uint8_t* bAndK(uint8_t *b, uint8_t *k) {
+	uint8_t *bAndK = (uint8_t*)malloc(bWidth*bHeight);
+
+	for(int i = 0; i < bHeight; ++i) {
+		for(int j = 0; j < bWidth; ++j) {
+			int curPos = i*bWidth + j;
+			bAndK[curPos] = b[curPos] & k[curPos];
+		}
+	}
+	return bAndK;
+}
+
+void complement(uint8_t *imgData, uint8_t *key, int curBlock) {
+	uint8_t *block = extract(imgData, curBlock);
+	int sumBAndK = sum(bAndK(block, key));
+	srand(time(0));
+	int i, j;
+	int sumK = sum(key);
+	int curPos;
+
+	do {
+		i = rand() % bHeight;
+		j = rand() % bWidth;
+		curPos = i*bWidth + j;
+	} while(key[curPos] != 1 || block[curPos] != 0 && sumBAndK == 1 || block[curPos] != 1 && sumBAndK == sumK-1);	
+	int pNBlockHor = imgDataWidth / bWidth; //Possible number of blocks horizontally
+	int verPos = bHeight * (curBlock / pNBlockHor) + i; //Vertical pos
+	int horPos = bWidth * (curBlock % pNBlockHor) + j; //Horizontal pos
+	imgData[verPos*imgDataWidth + horPos] ^= 1;
+	return;
+}
+
+void encode(uint8_t *imgData, uint8_t *key, uint8_t *bMessage) {
+	//Embed message size (uint16_t) at beginning of the message
+	uint8_t message[mSize + 16];
+	for(int i = 0; i < 16; ++i) {
+		message[i] = (mSize >> (15-i % 16)) & 1;
+	}
+	memcpy(message+16, bMessage, mSize);
+	
+	int pNBlock = imgHeight/bHeight * imgDataWidth/bWidth; //Possible number of blocks image can contain
+	int sumK = sum(key);
+	int sumBAndK;
+	for(int curBit = 0, curBlock = -1; curBit < sizeof(message); ++curBit) {
+		uint8_t *block;
+		do {
+			++curBlock;
+			if(curBlock >= pNBlock) {
+				printf("The message is too long.");
+				return;
+			}
+			block = extract(imgData, curBlock);
+			sumBAndK = sum(bAndK(block, key));
+		} while(sumBAndK <= 0 || sumBAndK >= sumK);
+
+		if(sumBAndK % 2 == message[curBit]) continue;
+		else complement(imgData, key, curBlock);
+	}
+	writeImg(imgData);
+	printf("Concealing message is succeeded.");
+	return;
+}
+
+char* decode(uint8_t *imgData, uint8_t *key) {
+	int pNBlock = imgDataWidth/bWidth * imgHeight/bHeight;
+	uint8_t *block;
+	int curBlock = -1;
+	int sumBAndK;
+
+	uint16_t mSize = 0;
+	for(int i = 0; i < 16; ++i) {
+		do {
+			++curBlock;
+			block = extract(imgData, curBlock);
+			sumBAndK = sum(bAndK(block, key));
+		} while(sumBAndK <= 0 || sumBAndK >= sum(key));
+		mSize |= (sumBAndK % 2) << (15-i % 16);
+	}
+	
+	if(mSize > pNBlock) return "Wrong image.";
+
+	char *message = (char*)calloc(mSize/8, 1);
+	for(int curBit = 0; curBit < mSize; ++curBit) {
+		do {
+			++curBlock;
+			block = extract(imgData, curBlock);
+			sumBAndK = sum(bAndK(block, key));
+		} while(sumBAndK <= 0 || sumBAndK >= sum(key));
+		message[curBit/8] |= (sumBAndK % 2) << (7-curBit % 8);
+	}
+	return message;
+}
+
+uint8_t* getKey(char *arg) {
+	int c = 0;
+	while(arg[c] != ',') {
+		if(c >= strlen(arg)) {
+			printf("Keystring is missing comma.");
+			return NULL;
+		}
+		++c; 	
+	}
+
+	for(int i = 0; i < c; ++i) {
+		bHeight += (arg[i] - '0') * pow(10, c-i-1);
+	}
+	if(bHeight > strlen(arg)-c-1) {
+		printf("Invalid key height.");
+		return NULL;
+	}
+	int keyLen = strlen(arg) - c - 1; 
+	bWidth = keyLen / bHeight;
+
+	uint8_t *key = (uint8_t*)malloc(keyLen);
+	for(int i = 0; i < keyLen; ++i) {
+		key[i] = arg[c+i+1] - '0';
+		if(key[i] < 0 || key[i] > 1) {
+			printf("Invalid character in keystring");
+			return NULL;
+		}
+	}
+
+	return key;	
 }
 
 
-string readMessage(string message) {
-    string binaryMessage(message.size() * 8, 0);
-    for (int i = 0; i < message.size() * 8; ++i) {
-        binaryMessage[i] = ((message[i/8] >> (7 - i%8)) & 1);
-    }
-    return binaryMessage;
-}
-
-int checkSum(vector<vector<uint8_t>> block) {
-    int sum = 0;
-    for (int i = 0; i < BLOCK_SIZE; ++i) {
-        for (int j = 0; j < BLOCK_SIZE; ++j) {
-            sum += (block[i][j] & 1);
-        }
-    }
-    return sum;
-}
-
-vector<vector<uint8_t>> readImage(char* imgPath) {
-    FILE* img = fopen(imgPath, "rb");
-    if (img == NULL) {
-        imgHeader.biBitCount = 0;
-        vector<vector<uint8_t>> error;
-        return error;
-    }
-    fread(&imgHeader, sizeof(BITMAPHEADER), 1, img);
-    if(imgHeader.biBitCount != 1) {
-        vector<vector<uint8_t>> error;
-        return error;
-    }
-    int     imgRowSize             = ((imgHeader.biBitCount * imgHeader.biWidth + 31) / 32) * 4;
-    int     imgDataWithPaddingSize = imgRowSize * imgHeader.biHeight;
-    uint8_t *imgDataWithPadding    = (uint8_t*)malloc(imgDataWithPaddingSize);
-    fseek(img, imgHeader.bfOffBits, SEEK_SET);
-    fread(imgDataWithPadding, imgDataWithPaddingSize, 1, img);
-    fclose(img);
-    return extractImgData(imgDataWithPadding);
-}
-
-vector<vector<uint8_t>> extractImgData(uint8_t* imgDataWithPadding) {
-    vector<vector<uint8_t>> extractedImgData(imgHeader.biHeight, vector<uint8_t>(imgHeader.biWidth, 0));
-    int imgRowSize = ((imgHeader.biBitCount * imgHeader.biWidth + 31) / 32) * 4;
-    for (int i = 0; i < imgHeader.biHeight; ++i) {
-        for (int j = 0; j < imgHeader.biWidth; ++j) {
-            extractedImgData[i][j] = ((imgDataWithPadding[imgRowSize * i + j/8] >> (7 - j%8)) & 1);
-        }
-    }
-    return extractedImgData;
-}
-
-void writeImage(vector<vector<uint8_t>> imgData) {
-    FILE *img = fopen("output.bmp", "wb");
-    fwrite(&imgHeader, sizeof(BITMAPHEADER), 1, img);
-    int       imgRowSize                                 = ((imgHeader.biBitCount * imgHeader.biWidth + 31) / 32) * 4;
-    const int imgDataWithPaddingSize                     = imgRowSize * imgHeader.biHeight;
-    uint8_t   imgDataWithPadding[imgDataWithPaddingSize] = {};
-    for (int i = 0; i < imgHeader.biHeight; ++i) {
-        for (int j = 0; j < imgHeader.biWidth; ++j) {
-            imgDataWithPadding[imgRowSize * i + j/8] |= ((imgData[i][j] * 128) >> (j%8)); 
-        }
-    }
-    fseek(img, imgHeader.bfOffBits, SEEK_SET);
-    fwrite(imgDataWithPadding, sizeof(uint8_t), imgDataWithPaddingSize, img);
-    fclose(img);
-    return;
-}
-
-vector<vector<uint8_t>> extractBlock(vector<vector<uint8_t>> imgData, int currentBlock) {
-    vector<vector<uint8_t>> extractedBlock(BLOCK_SIZE, vector<uint8_t>(BLOCK_SIZE, 0));
-    for (int i = 0; i < BLOCK_SIZE; ++i) {
-        for (int j = 0; j < BLOCK_SIZE; ++j) {
-            extractedBlock[i][j] = imgData[BLOCK_SIZE * (currentBlock / (imgHeader.biWidth / BLOCK_SIZE)) + i][BLOCK_SIZE * (currentBlock % (imgHeader.biWidth / BLOCK_SIZE)) + j];
-        }
-    }
-    return extractedBlock;
-}
-
-vector<vector<uint8_t>> blockAndKey(vector<vector<uint8_t>> block1, vector<vector<uint8_t>> block2) {
-    vector<vector<uint8_t>> block(BLOCK_SIZE, vector<uint8_t>(BLOCK_SIZE, 0));
-    for (int i = 0; i < BLOCK_SIZE; ++i) {
-        for (int j = 0; j < BLOCK_SIZE; ++j) {
-            block[i][j] = block1[i][j] & block2[i][j];
-        }
-    }
-    return block;
-}
-
-void bitComplement(vector<vector<uint8_t>> stegoBlock, vector<vector<uint8_t>> key, vector<vector<uint8_t>>& imgData, int currentBlock, int sumBlockAndKey) {
-    srand(time(0));
-    int col, row;
-    if (sumBlockAndKey == 1) {
-        do {
-            col = rand() % BLOCK_SIZE;
-            row = rand() % BLOCK_SIZE;
-        } while (stegoBlock[col][row] != 0 || key[col][row] != 1);
-    }
-    else if (sumBlockAndKey == checkSum(key) - 1) {
-        do {
-            col = rand() % BLOCK_SIZE;
-            row = rand() % BLOCK_SIZE;
-        } while (stegoBlock[col][row] != 1 || key[col][row] != 1);
-    }
-    else {
-        do {
-            col = rand() % BLOCK_SIZE;
-            row = rand() % BLOCK_SIZE;
-        } while (key[col][row] != 1);
-        
-    } 
-    imgData[BLOCK_SIZE * (currentBlock / (imgHeader.biWidth / BLOCK_SIZE)) + col][BLOCK_SIZE * (currentBlock % (imgHeader.biWidth / BLOCK_SIZE)) + row] ^= 1;       
-    return;
-}
-
-string decode(vector<vector<uint8_t>> imgData, vector<vector<uint8_t>> key) {
-    string                  binaryMessage;
-    int                     sumBlockAndKey;
-    int                     possibleNumOfBlocks = (imgData.size() / BLOCK_SIZE) * (imgData.at(0).size() / BLOCK_SIZE);
-    vector<vector<uint8_t>> stegoBlock(BLOCK_SIZE, vector<uint8_t>(BLOCK_SIZE, 0));
-    string                  message(possibleNumOfBlocks/8, 0);
-    for (int blockCount = -1; blockCount < possibleNumOfBlocks; ) {
-        do {
-            ++blockCount;
-            stegoBlock     = extractBlock(imgData, blockCount);
-            sumBlockAndKey = checkSum(blockAndKey(stegoBlock, key));
-            
-        } while ( sumBlockAndKey  <= 0 || sumBlockAndKey >= checkSum(key));
-        uint8_t ch =  sumBlockAndKey % 2;
-        binaryMessage += ch;
-        int binaryMesPos = binaryMessage.size() - 1;
-        if(!(binaryMesPos%8) && binaryMesPos) {
-            if(  ! (message[binaryMesPos/8 - 1] == 32 || message[binaryMesPos/8 - 1] == 33   || message[binaryMesPos/8 - 1]  == 44  || message[binaryMesPos/8 - 1]  == 46
-                ||  message[binaryMesPos/8 - 1] == 39 || message[binaryMesPos/8 - 1] == 40   || message[binaryMesPos/8 - 1]  == 41  || message[binaryMesPos/8 - 1]  == 34
-                || (message[binaryMesPos/8 - 1] >= 48 && message[binaryMesPos/8 - 1] <= 57)  || (message[binaryMesPos/8 - 1] >= 65  && message[binaryMesPos/8 - 1]  <= 90) 
-                || (message[binaryMesPos/8 - 1] >= 97 && message[binaryMesPos/8 - 1] <= 122) || message[binaryMesPos/8 - 1]  == 63)) 
-                {
-                message.resize(binaryMesPos/8 - 1);
-                break;
-            }
-        }
-        message[binaryMesPos/8] |= ((binaryMessage[binaryMesPos] * 128) >> (binaryMesPos%8)); 
-    }    
-    return message;
-}
-
-void encode(vector<vector<uint8_t>> imgData, vector<vector<uint8_t>> key, string binaryMessage) {
-    for (int bitCount = 0, blockCount = -1; bitCount < binaryMessage.size(); ++bitCount) {
-        vector<vector<uint8_t>> stegoBlock(BLOCK_SIZE, vector<uint8_t>(BLOCK_SIZE, 0));
-        int                     sumBlockAndKey = 0;
-        do {
-            ++blockCount;
-            if (blockCount >= (imgHeader.biHeight / BLOCK_SIZE) * (imgHeader.biWidth / BLOCK_SIZE)) {
-            cout << endl << "The message can't be fully concealed. Please choose a higher resolution image!" << endl;
-            return;
-            }            
-            stegoBlock     = extractBlock(imgData, blockCount);
-            sumBlockAndKey = checkSum(blockAndKey(stegoBlock, key));      
-        } while (sumBlockAndKey <= 0 || sumBlockAndKey >= checkSum(key));
-        if  (sumBlockAndKey % 2 == binaryMessage[bitCount]) {   
-            continue;
-        }
-        else {
-            bitComplement(stegoBlock, key, imgData, blockCount, sumBlockAndKey);
-        }
-    }
-    writeImage(imgData);
-    cout << endl << "The message has been successfully concealed!" << endl;
-    return;
-}
