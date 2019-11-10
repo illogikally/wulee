@@ -6,8 +6,7 @@
 #include <math.h>
 
 #pragma pack(1)
-typedef struct
-{
+typedef struct {
     uint16_t bfType;
     uint32_t bfSize;
     uint16_t bfReserved1;
@@ -35,7 +34,7 @@ int imgDataWidth;
 uint16_t mSize; //Message size in bit
 
 void prints(char*);
-void writeImg(uint8_t *);
+void writeImg(uint8_t*);
 uint8_t *readImg(char*);
 uint8_t *binConvert(char*);
 int sum(uint8_t*);
@@ -62,8 +61,8 @@ int main(int argc, uint8_t **argv) {
         }
     }
     else {
-        printf("Usage: [PATH] [KEYSTRING] [MESSAGE].\n \
-			    \n  - [PATH]: Path to cover/stego-image. \
+        printf("Usage: [PATH] [KEYSTRING] [MESSAGE]. \n \
+			    \n  - [PATH]: Path to cover/stego-image. (Output image will have name output.bmp). \
 			    \n  - [KEYSTRING]: Key with comma-separated height-suffix. Ex: \"3,000111101010\". \
 			    \n  - [MESSAGE]: Message to conceal.");
     }
@@ -83,8 +82,8 @@ uint8_t *readImg(char *imgPath) {
         printf("Can't open the image, make sure the path is correct.");
         return NULL;
     }
-
     fread(&imgHeader, sizeof(BITMAPHEADER), 1, img);
+
     if (imgHeader.biBitCount != 1) {
         printf("The given file is not a monochrome bitmap.");
         return NULL;
@@ -95,7 +94,7 @@ uint8_t *readImg(char *imgPath) {
     int rowSize = (imgWidth + 31) / 32 * 4;
     int imgDataSize = rowSize * imgHeight;
     uint8_t imgDataRaw[imgDataSize];
-    uint8_t *imgData = (uint8_t *)malloc(imgDataSize * 8);
+    uint8_t *imgData = (uint8_t*)malloc(imgDataSize * 8);
 
     fread(imgDataRaw, imgDataSize, 1, img);
 
@@ -117,10 +116,8 @@ void writeImg(uint8_t *imgData) {
     uint8_t *imgDataRaw = (uint8_t*)calloc(imgDataSize, 1);
 
     //Convert image data to bit
-    for (int i = 0; i < imgHeight; ++i)
-    {
-        for (int j = 0; j < imgDataWidth; ++j)
-        {
+    for (int i = 0; i < imgHeight; ++i) {
+        for (int j = 0; j < imgDataWidth; ++j) {
             imgDataRaw[i*rowSize + j/8] |= imgData[i*imgDataWidth + j] << (7-j % 8);
         }
     }
@@ -141,22 +138,19 @@ uint8_t *binConvert(char *message) {
     return bMessage;
 }
 
-int sum(uint8_t *block)
-{
+int sum(uint8_t *block) {
     int sum = 0;
-    for (int i = 0; i < bHeight; ++i)
-    {
-        for (int j = 0; j < bWidth; ++j)
-        {
+    for (int i = 0; i < bHeight; ++i) {
+        for (int j = 0; j < bWidth; ++j) {
             sum += block[i * bWidth + j] & 1;
         }
     }
     return sum;
 }
 
-uint8_t *extract(uint8_t *imgData, int curBlock)
-{
-    uint8_t *block = (uint8_t *)malloc(bHeight * bWidth);
+uint8_t *extract(uint8_t *imgData, int curBlock) {
+    uint8_t *block = (uint8_t*)malloc(bHeight * bWidth);
+
     for (int i = 0; i < bHeight; ++i) {
         for (int j = 0; j < bWidth; ++j) {
             int pNBlockHor = imgDataWidth / bWidth;             //Possible number of blocks horizontally
@@ -169,7 +163,8 @@ uint8_t *extract(uint8_t *imgData, int curBlock)
 }
 
 uint8_t *bAndK(uint8_t *b, uint8_t *k) {
-    uint8_t *bAndK = (uint8_t *)malloc(bWidth * bHeight);
+    uint8_t *bAndK = (uint8_t*)malloc(bWidth * bHeight);
+
     for (int i = 0; i < bHeight; ++i) {
         for (int j = 0; j < bWidth; ++j) {
             int curPos = i*bWidth + j;
@@ -192,6 +187,7 @@ void complement(uint8_t *imgData, uint8_t *key, int curBlock) {
         j = rand() % bWidth;
         curPos = i*bWidth + j;
     } while (key[curPos] != 1 || block[curPos] != 0 && sumBAndK == 1 || block[curPos] != 1 && sumBAndK == sumK-1);
+
     int pNBlockHor = imgDataWidth / bWidth;             //Possible number of blocks horizontally
     int verPos = bHeight * (curBlock / pNBlockHor) + i; //Vertical pos
     int horPos = bWidth * (curBlock % pNBlockHor) + j;  //Horizontal pos
@@ -205,7 +201,7 @@ void encode(uint8_t *imgData, uint8_t *key, uint8_t *bMessage) {
     for (int i = 0; i < 16; ++i) {
         message[i] = (mSize >> (15-i % 16)) & 1;
     }
-    memcpy(message + 16, bMessage, mSize);
+    memcpy(message+16, bMessage, mSize);
 
     int pNBlock = imgHeight / bHeight * imgDataWidth / bWidth; //Possible number of blocks image can contain
     int sumK = sum(key);
@@ -225,7 +221,6 @@ void encode(uint8_t *imgData, uint8_t *key, uint8_t *bMessage) {
         if (sumBAndK % 2 == message[curBit]) continue;
         else complement(imgData, key, curBlock);
     }
-
     writeImg(imgData);
     printf("Concealing message is succeeded.");
     return;
@@ -251,10 +246,8 @@ char *decode(uint8_t *imgData, uint8_t *key) {
         return "Wrong image.";
 
     char *message = (char *)calloc(mSize / 8, 1);
-    for (int curBit = 0; curBit < mSize; ++curBit)
-    {
-        do
-        {
+    for (int curBit = 0; curBit < mSize; ++curBit) {
+        do {
             ++curBlock;
             block = extract(imgData, curBlock);
             sumBAndK = sum(bAndK(block, key));
@@ -273,26 +266,22 @@ uint8_t *getKey(char *arg) {
         }
         ++c;
     }
-
     for (int i = 0; i < c; ++i) {
         bHeight += (arg[i] - '0') * pow(10, c-i-1);
     }
-
     int keyLen = strlen(arg) - c - 1;
     if (bHeight > keyLen || keyLen % bHeight != 0) {
         printf("Invalid key height.");
         return NULL;
     }
     bWidth = keyLen / bHeight;
-
-    uint8_t *key = (uint8_t *)malloc(keyLen);
+    uint8_t *key = (uint8_t*)malloc(keyLen);
     for (int i = 0; i < keyLen; ++i) {
         key[i] = arg[c+i+1] - '0';
-        if (key[i] < '0' || key[i] > '1') {
+        if (key[i] < 0|| key[i] > 1) {
             printf("Invalid character in keystring");
             return NULL;
         }
     }
-
     return key;
 }
