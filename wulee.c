@@ -65,7 +65,6 @@ int main(int argc, uint8_t **argv) {
 			    \n  - [KEYSTRING]: Key with comma-separated height-suffix. Ex: \"3,000111101010\". \
 			    \n  - [MESSAGE]: Message to conceal."); 
 	}
-
  	return 0;
 }
 
@@ -75,7 +74,6 @@ void prints(char *s) {
 	}
 	return;
 }
-
 
 uint8_t* readImg(char *imgPath) {
 	FILE *img = fopen(imgPath, "rb");
@@ -238,7 +236,6 @@ char* decode(uint8_t *imgData, uint8_t *key) {
 			block = extract(imgData, curBlock);
 			sumBAndK = sum(bAndK(block, key));
 		} while(sumBAndK <= 0 || sumBAndK >= sum(key));
-		//mSize |= ((sumBAndK%2) * 32768) >> (i%16);
 		mSize |= (sumBAndK % 2) << (15-i % 16);
 	}
 	
