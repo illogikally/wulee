@@ -7,12 +7,12 @@
 
 #pragma pack(1)
 typedef struct {
-    uint16_t bfType;
-    uint32_t bfSize;
-    uint16_t bfReserved1;
-    uint16_t bfReserved2;
-    uint32_t bfOffBits;
-    uint32_t biSize;
+	uint16_t bfType;
+	uint32_t bfSize;
+	uint16_t bfReserved1;
+	uint16_t bfReserved2;
+	uint32_t bfOffBits;
+	uint32_t biSize;
     uint32_t biWidth;
     uint32_t biHeight;
     uint16_t biPlanes;
@@ -215,9 +215,10 @@ void encode(uint8_t *imgData, uint8_t *key, uint8_t *bMessage) {
 			sumBAndK = sum(bAndK(block, key));
 		} while(sumBAndK <= 0 || sumBAndK >= sumK);
 
-		if(sumBAndK % 2 == message[curBit]) continue;
+    	if(sumBAndK % 2 == message[curBit]) continue;
 		else complement(imgData, key, curBlock);
 	}
+    
 	writeImg(imgData);
 	printf("Concealing message is succeeded.");
 	return;
@@ -266,16 +267,21 @@ uint8_t* getKey(char *arg) {
 	for(int i = 0; i < c; ++i) {
 		bHeight += (arg[i] - '0') * pow(10, c-i-1);
 	}
-	if(bHeight > strlen(arg)-c-1) {
+
+	int keyLen = strlen(arg) - c - 1; 
+	if(bHeight > keyLen || keyLen % bHeight != 0) {
 		printf("Invalid key height.");
 		return NULL;
 	}
-	int keyLen = strlen(arg) - c - 1; 
 	bWidth = keyLen / bHeight;
 
 	uint8_t *key = (uint8_t*)malloc(keyLen);
 	for(int i = 0; i < keyLen; ++i) {
 		key[i] = arg[c+i+1] - '0';
+		if(key[i] < '0' || key[i] > '1') {
+			printf("Invalid character in keystring");
+			return NULL;
+		}
 	}
 
 	return key;	
