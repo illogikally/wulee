@@ -27,11 +27,11 @@ typedef struct {
 } BITMAPHEADER;
 
 BITMAPHEADER imgHeader; 
-int bWidth, bHeight; //Stego-block size
+int bWidth, bHeight; 
 int imgWidth;
 int imgHeight;
 int imgDataWidth;
-uint16_t mSize; //Message size in bit
+uint16_t mSize; 
 
 void prints(char*);
 void writeImg(uint8_t*);
@@ -62,7 +62,7 @@ int main(int argc, uint8_t **argv) {
 	else {
 		printf("Usage: [PATH] [KEYSTRING] [MESSAGE].\n \
 			    \n  - [PATH]: Path to cover/stego-image. \
-			    \n  - [KEYSTRING]: Key with comma-separated height-suffix. Ex: \"3,000111101010\". \
+			    \n  - [KEYSTRING]: Comma-separated width-suffix keystring. Ex: \"3,000111101010\". \
 			    \n  - [MESSAGE]: Message to conceal."); 
 	}
  	return 0;
@@ -114,7 +114,6 @@ void writeImg(uint8_t *imgData) {
 	int imgDataSize = rowSize * imgHeight;
 	uint8_t *imgDataRaw = (uint8_t*)calloc(imgDataSize, 1);
 
-	//Convert image data to bit
 	for(int i = 0; i < imgHeight; ++i) {
 		for(int j = 0; j < imgDataWidth; ++j) {
 			imgDataRaw[i*rowSize + j/8] |= imgData[i*imgDataWidth + j] << (7-j % 8);
@@ -151,9 +150,9 @@ uint8_t* extract(uint8_t *imgData, int curBlock) {
 	uint8_t *block = (uint8_t*)malloc(bHeight*bWidth);
 	for(int i = 0; i < bHeight; ++i) {
 		for(int j = 0; j < bWidth; ++j) {
-			int pNBlockHor = imgDataWidth / bWidth; //Possible number of blocks horizontally
-			int verPos = bHeight * (curBlock / pNBlockHor) + i; //Vertical pos
-			int horPos = bWidth * (curBlock % pNBlockHor) + j; //Horizontal pos
+            int pNBlockHor = imgDataWidth / bWidth;
+			int verPos = bHeight * (curBlock / pNBlockHor) + i; 
+			int horPos = bWidth * (curBlock % pNBlockHor) + j; 
 			block[i*bWidth + j] = imgData[verPos*imgDataWidth + horPos];
 		}
 	}
@@ -185,22 +184,21 @@ void complement(uint8_t *imgData, uint8_t *key, int curBlock) {
 		j = rand() % bWidth;
 		curPos = i*bWidth + j;
 	} while(key[curPos] != 1 || block[curPos] != 0 && sumBAndK == 1 || block[curPos] != 1 && sumBAndK == sumK-1);	
-	int pNBlockHor = imgDataWidth / bWidth; //Possible number of blocks horizontally
-	int verPos = bHeight * (curBlock / pNBlockHor) + i; //Vertical pos
-	int horPos = bWidth * (curBlock % pNBlockHor) + j; //Horizontal pos
-	imgData[verPos*imgDataWidth + horPos] ^= 1;
+    int pNBlockHor = imgDataWidth / bWidth; 
+	int verPos = bHeight * (curBlock / pNBlockHor) + i; 
+	int horPos = bWidth * (curBlock % pNBlockHor) + j; 
+    imgData[verPos*imgDataWidth + horPos] ^= 1;
 	return;
 }
 
 void encode(uint8_t *imgData, uint8_t *key, uint8_t *bMessage) {
-	//Embed message size (uint16_t) at beginning of the message
 	uint8_t message[mSize + 16];
 	for(int i = 0; i < 16; ++i) {
 		message[i] = (mSize >> (15-i % 16)) & 1;
 	}
 	memcpy(message+16, bMessage, mSize);
 	
-	int pNBlock = imgHeight/bHeight * imgDataWidth/bWidth; //Possible number of blocks image can contain
+	int pNBlock = imgHeight/bHeight * imgDataWidth/bWidth; 
 	int sumK = sum(key);
 	int sumBAndK;
 	for(int curBit = 0, curBlock = -1; curBit < sizeof(message); ++curBit) {
@@ -255,35 +253,39 @@ char* decode(uint8_t *imgData, uint8_t *key) {
 }
 
 uint8_t* getKey(char *arg) {
-	int c = 0;
-	while(arg[c] != ',') {
-		if(c >= strlen(arg)) {
+	int cPos = 0;
+	while(arg[cPos] != ',') {
+		if(cPos >= strlen(arg)) {
 			printf("Keystring is missing comma.");
 			return NULL;
 		}
-		++c; 	
+		++cPos; 	
 	}
 
-	for(int i = 0; i < c; ++i) {
-		bHeight += (arg[i] - '0') * pow(10, c-i-1);
+	for(int i = 0; i < cPos; ++i) {
+		bWidth += (arg[i] - '0') * pow(10, cPos-i-1);
 	}
 
-	int keyLen = strlen(arg) - c - 1; 
-	if(bHeight > keyLen || keyLen % bHeight != 0) {
-		printf("Invalid key height.");
+	int keyLen = strlen(arg)-cPos-1; 
+	if(bWidth > keyLen || keyLen % bWidth != 0) {
+		printf("Invalid key width.");
 		return NULL;
 	}
-	bWidth = keyLen / bHeight;
+	bHeight = keyLen / bWidth;
 
 	uint8_t *key = (uint8_t*)malloc(keyLen);
 	for(int i = 0; i < keyLen; ++i) {
-		key[i] = arg[c+i+1] - '0';
-		if(key[i] < '0' || key[i] > '1') {
-			printf("Invalid character in keystring");
+		key[i] = arg[cPos+i+1] - '0';
+		if(key[i] != 0 && key[i] != 1) {
+			printf("Key must only contain 0 and 1.");
 			return NULL;
 		}
 	}
 
+    if(sum(key) < 3) {
+        printf("Key must have at least 3 bits 1.");
+        return NULL;
+    }
 	return key;	
 }
 
