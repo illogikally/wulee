@@ -26,21 +26,21 @@ typedef struct {
    uint64_t ClrPallete;
 } BitmapHeader;
 
+int 			 BLOCK_WIDTH, BLOCK_HEIGHT, BLOCK_SIZE;
+int 			 DATA_WIDTH, DATA_HEIGHT, DATA_SIZE;
+uint16_t 	 MESSAGE_LEN; 
 BitmapHeader header; 
-int BLOCK_WIDTH, BLOCK_HEIGHT, BLOCK_SIZE; 
-int DATA_WIDTH, DATA_HEIGHT, DATA_SIZE;
-uint16_t MESSAGE_LEN; 
 
+int 		sum(uint8_t*);
 void 		prints(char*);
 void 		write_image(uint8_t*);
-uint8_t* read_image(char*);
-uint8_t* string_to_binary(char*);
-int 		sum(uint8_t*);
-uint8_t* extract(uint8_t*, int);
-uint8_t* b_and_k(uint8_t*, uint8_t*);
 void 		complement(uint8_t*, uint8_t*, int);
 void 		encode(uint8_t*, uint8_t*, uint8_t*);
 char* 	decode(uint8_t*, uint8_t*);
+uint8_t* read_image(char*);
+uint8_t* string_to_binary(char*);
+uint8_t* extract(uint8_t*, int);
+uint8_t* b_and_k(uint8_t*, uint8_t*);
 uint8_t* get_key(char*);
 
 int main(int argc, uint8_t **argv) {
@@ -115,6 +115,7 @@ void write_image(uint8_t *data) {
 	fwrite(&header, sizeof(BitmapHeader), 1, img);
 	fwrite(dataByte, sizeof(uint8_t), DATA_SIZE/8, img);
 	fclose(img);
+	free(data);
 	free(dataByte);
 	return;
 }
