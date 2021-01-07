@@ -5,7 +5,7 @@
 #include <stdint.h>
 #include <math.h>
 
-#pragma pack(1)
+#pragma pack(2)
 typedef struct {
 	uint16_t bfType;
 	uint32_t bfSize;
@@ -27,11 +27,10 @@ typedef struct {
 } BitmapHeader;
 
 BitmapHeader header; 
-int BLOCK_WIDTH, BLOCK_HEIGHT; 
+int BLOCK_WIDTH, BLOCK_HEIGHT, BLOCK_SIZE; 
 // int imgWidth;
 int dataSizeByte;
-int DATA_HEIGHT;
-int DATA_WIDTH;
+int DATA_HEIGHT, DATA_WIDTH, DATA_SIZE;
 uint16_t MESSAGE_LEN; 
 
 void prints(char*);
@@ -93,18 +92,14 @@ uint8_t* read_image(char *path) {
 
    DATA_HEIGHT = header.biHeight;
 	int rowSize = (header.biWidth + 31) / 32 * 4;
+	DATA_WIDTH = rowSize * 8;
+	// DATA_SIZE = DATA_HEIGHT * DATA_WIDTH
 	dataSizeByte = rowSize * DATA_HEIGHT;
 	uint8_t dataByte[dataSizeByte];
 	uint8_t *data = (uint8_t*) malloc(dataSizeByte * 8);
 
 	fread(dataByte, dataSizeByte, 1, img);
 
-	DATA_WIDTH = rowSize * 8;
-	/* for (int i = 0; i < DATA_HEIGHT; ++i) { */
-	/* 	for (int j = 0; j < DATA_WIDTH; ++j) { */
-	/* 		data[i*DATA_WIDTH + j] = (dataRaw[i*rowSize + j/8] >> (7-j % 8)) & 1; */
-	/* 	} */
-	/* } */
    for (int i = 0; i < DATA_HEIGHT*DATA_WIDTH; ++i) {
       data[i] = (dataByte[i/8] >> (7 - i%8)) & 1;
    }
@@ -114,15 +109,7 @@ uint8_t* read_image(char *path) {
 
 void write_image(uint8_t *data) {
 	FILE* img = fopen("output.bmp", "wb");
-	
 	uint8_t *dataByte = (uint8_t*) calloc(dataSizeByte, 1);
-	// uint8_t dataByte[dataSizeByte] = {0};
-
-	// for (int i = 0; i < DATA_HEIGHT; ++i) {
-	// 	for (int j = 0; j < DATA_WIDTH; ++j) {
-	// 		dataByte[i*rowSize + j/8] |= data[i*DATA_WIDTH + j] << (7-j % 8);
-	// 	}
-	// }
 
 	for (int i = 0; i < DATA_WIDTH*DATA_HEIGHT; ++i) {
 		dataByte[i/8] |= data[i] << (7 - i%8);
@@ -147,11 +134,6 @@ uint8_t* string_to_binary(char *messageString) {
 
 int sum(uint8_t *block) {
 	int sum = 0;
-	// for(int i = 0; i < BLOCK_HEIGHT; ++i) {
-	// 	for(int j = 0; j < BLOCK_WIDTH; ++j) {
-	// 		sum += block[i*BLOCK_WIDTH + j] & 1;
-	// 	}
-	// }
 	for (int i = 0; i < BLOCK_HEIGHT*BLOCK_WIDTH; ++i) {
 		sum += block[i] & 1;
 	}
@@ -159,32 +141,25 @@ int sum(uint8_t *block) {
 }
 
 uint8_t* extract(uint8_t *imgData, int blockIndex) {
+   int maxBlockHor = DATA_WIDTH / BLOCK_WIDTH;
+	int verPos = BLOCK_HEIGHT * (blockIndex / maxBlockHor);
+	int horPos = BLOCK_WIDTH * (blockIndex % maxBlockHor);
 	uint8_t *block = (uint8_t*) malloc(BLOCK_HEIGHT*BLOCK_WIDTH);
-	for(int i = 0; i < BLOCK_HEIGHT; ++i) {
-		for(int j = 0; j < BLOCK_WIDTH; ++j) {
-         int maxBlockHor = DATA_WIDTH / BLOCK_WIDTH;
-			int verPos = BLOCK_HEIGHT * (blockIndex / maxBlockHor) + i; 
-			int horPos = BLOCK_WIDTH * (blockIndex % maxBlockHor) + j; 
-			block[i*BLOCK_WIDTH + j] = imgData[verPos*DATA_WIDTH + horPos];
+
+	for (int i = 0; i < BLOCK_HEIGHT; ++i) {
+		for (int j = 0; j < BLOCK_WIDTH; ++j) {
+			block[i*BLOCK_WIDTH + j] = imgData[(verPos+i)*DATA_WIDTH + (horPos+j)];
 		}
 	}
 	return block;
 }
 
 uint8_t* b_and_k(uint8_t *b, uint8_t *k) {
-	uint8_t *b_and_k= (uint8_t*) malloc(BLOCK_WIDTH*BLOCK_HEIGHT);
-
-	// for(int i = 0; i < BLOCK_HEIGHT; ++i) {
-	// 	for(int j = 0; j < BLOCK_WIDTH; ++j) {
-	// 		int index = i*BLOCK_WIDTH + j;
-	// 		b_and_k[index] = b[index] & k[index];
-	// 	}
-	// }
-
+	uint8_t *bAndK= (uint8_t*) malloc(BLOCK_WIDTH*BLOCK_HEIGHT);
 	for (int i = 0; i < BLOCK_HEIGHT*BLOCK_WIDTH; ++i) {
-		b_and_k[i] = b[i] & k[i];
+		bAndK[i] = b[i] & k[i];
 	}
-	return b_and_k;
+	return bAndK;
 }
 
 void complement(uint8_t *data, uint8_t *key, int blockIndex) {
@@ -217,7 +192,7 @@ void encode(uint8_t *data, uint8_t *key, uint8_t *bMessage) {
 	int maxBlock = DATA_HEIGHT/BLOCK_HEIGHT * DATA_WIDTH/BLOCK_WIDTH; 
 	int sumK = sum(key);
 	int sumBAndK;
-	for(int bitIndex = 0, blockIndex = -1; bitIndex < sizeof(message); ++bitIndex) {
+	for (int bitIndex = 0, blockIndex = -1; bitIndex < sizeof(message); ++bitIndex) {
 		uint8_t *block;
 		do {
 			++blockIndex;
@@ -256,7 +231,8 @@ char* decode(uint8_t *data, uint8_t *key) {
 		MESSAGE_LEN |= (sumBAndK % 2) << (15-i % 16);
 	}
 	
-	if (MESSAGE_LEN > maxBlock) return "Wrong image.\n";
+	if (MESSAGE_LEN > maxBlock) 
+		return "Wrong image.\n";
 
 	char *message = (char*) calloc(MESSAGE_LEN/8, 1);
 	for (int bitIndex = 0; bitIndex < MESSAGE_LEN; ++bitIndex) {
@@ -290,6 +266,7 @@ uint8_t* get_key(char *arg) {
 		return NULL;
 	}
 	BLOCK_HEIGHT = keyLen / BLOCK_WIDTH;
+	BLOCK_SIZE = BLOCK_HEIGHT * BLOCK_WIDTH;
 
 	uint8_t *key = (uint8_t*) malloc(keyLen);
 	for (int i = 0; i < keyLen; ++i) {
