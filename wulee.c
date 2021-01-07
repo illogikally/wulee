@@ -28,27 +28,25 @@ typedef struct {
 
 BitmapHeader header; 
 int BLOCK_WIDTH, BLOCK_HEIGHT, BLOCK_SIZE; 
-// int imgWidth;
-int dataSizeByte;
-int DATA_HEIGHT, DATA_WIDTH, DATA_SIZE;
+int DATA_WIDTH, DATA_HEIGHT, DATA_SIZE;
 uint16_t MESSAGE_LEN; 
 
-void prints(char*);
-void write_image(uint8_t*);
+void 		prints(char*);
+void 		write_image(uint8_t*);
 uint8_t* read_image(char*);
 uint8_t* string_to_binary(char*);
-int sum(uint8_t*);
+int 		sum(uint8_t*);
 uint8_t* extract(uint8_t*, int);
 uint8_t* b_and_k(uint8_t*, uint8_t*);
-void complement(uint8_t*, uint8_t*, int);
-void encode(uint8_t*, uint8_t*, uint8_t*);
-char* decode(uint8_t*, uint8_t*);
+void 		complement(uint8_t*, uint8_t*, int);
+void 		encode(uint8_t*, uint8_t*, uint8_t*);
+char* 	decode(uint8_t*, uint8_t*);
 uint8_t* get_key(char*);
 
 int main(int argc, uint8_t **argv) {
 	if (argc == 3 || argc == 4) {
 		uint8_t *data = read_image(argv[1]);
-		uint8_t *key = get_key(argv[2]);	
+		uint8_t *key  = get_key(argv[2]);	
 		if (key == NULL || data == NULL) 
 			return -1;
 
@@ -61,10 +59,10 @@ int main(int argc, uint8_t **argv) {
 		}
 	}
 	else {
-		printf("Usage: [PATH] [KEYSTRING] [MESSAGE].\n \
-			    \n  - [PATH]: Path to cover/stego-image. \
-			    \n  - [KEYSTRING]: Comma-separated width-suffix keystring. Ex: \"3,000111101010\". \
-			    \n  - [MESSAGE]: Message to conceal.\n"); 
+		printf("Usage: \n\tPATH KEYSTRING [MESSAGE]\n \
+			    \n  - PATH: Path to cover/stego-image. \
+			    \n  - KEYSTRING: Comma-separated width-suffix keystring. Ex: \"3,000111101010\". \
+			    \n  - MESSAGE: Message to conceal.\n"); 
 	}
  	return 0;
 }
@@ -90,17 +88,16 @@ uint8_t* read_image(char *path) {
 		return NULL;
 	}
 
-   DATA_HEIGHT = header.biHeight;
-	int rowSize = (header.biWidth + 31) / 32 * 4;
-	DATA_WIDTH = rowSize * 8;
-	// DATA_SIZE = DATA_HEIGHT * DATA_WIDTH
-	dataSizeByte = rowSize * DATA_HEIGHT;
-	uint8_t dataByte[dataSizeByte];
-	uint8_t *data = (uint8_t*) malloc(dataSizeByte * 8);
+   DATA_HEIGHT   = header.biHeight;
+	int rowSize   = (header.biWidth + 31) / 32 * 4;
+	DATA_WIDTH 	  = rowSize * 8;
+	DATA_SIZE 	  = DATA_HEIGHT * DATA_WIDTH;
+	uint8_t *data = (uint8_t*) malloc(DATA_SIZE);
+	uint8_t dataByte[DATA_SIZE/8];
 
-	fread(dataByte, dataSizeByte, 1, img);
+	fread(dataByte, DATA_SIZE/8, 1, img);
 
-   for (int i = 0; i < DATA_HEIGHT*DATA_WIDTH; ++i) {
+   for (int i = 0; i < DATA_SIZE; ++i) {
       data[i] = (dataByte[i/8] >> (7 - i%8)) & 1;
    }
 	fclose(img);
@@ -109,14 +106,14 @@ uint8_t* read_image(char *path) {
 
 void write_image(uint8_t *data) {
 	FILE* img = fopen("output.bmp", "wb");
-	uint8_t *dataByte = (uint8_t*) calloc(dataSizeByte, 1);
+	uint8_t *dataByte = (uint8_t*) calloc(DATA_SIZE/8, 1);
 
-	for (int i = 0; i < DATA_WIDTH*DATA_HEIGHT; ++i) {
+	for (int i = 0; i < DATA_SIZE; ++i) {
 		dataByte[i/8] |= data[i] << (7 - i%8);
 	}
 
 	fwrite(&header, sizeof(BitmapHeader), 1, img);
-	fwrite(dataByte, sizeof(uint8_t), dataSizeByte, img);
+	fwrite(dataByte, sizeof(uint8_t), DATA_SIZE/8, img);
 	fclose(img);
 	free(dataByte);
 	return;
@@ -134,29 +131,29 @@ uint8_t* string_to_binary(char *messageString) {
 
 int sum(uint8_t *block) {
 	int sum = 0;
-	for (int i = 0; i < BLOCK_HEIGHT*BLOCK_WIDTH; ++i) {
+	for (int i = 0; i < BLOCK_SIZE; ++i) {
 		sum += block[i] & 1;
 	}
 	return sum;
 }
 
-uint8_t* extract(uint8_t *imgData, int blockIndex) {
+uint8_t* extract(uint8_t *data, int blockIndex) {
    int maxBlockHor = DATA_WIDTH / BLOCK_WIDTH;
-	int verPos = BLOCK_HEIGHT * (blockIndex / maxBlockHor);
-	int horPos = BLOCK_WIDTH * (blockIndex % maxBlockHor);
-	uint8_t *block = (uint8_t*) malloc(BLOCK_HEIGHT*BLOCK_WIDTH);
+   int verPos      = BLOCK_HEIGHT * (blockIndex / maxBlockHor);
+   int horPos      = BLOCK_WIDTH * (blockIndex % maxBlockHor);
+   uint8_t *block  = (uint8_t*) malloc(BLOCK_SIZE);
 
 	for (int i = 0; i < BLOCK_HEIGHT; ++i) {
 		for (int j = 0; j < BLOCK_WIDTH; ++j) {
-			block[i*BLOCK_WIDTH + j] = imgData[(verPos+i)*DATA_WIDTH + (horPos+j)];
+			block[i*BLOCK_WIDTH + j] = data[(verPos+i)*DATA_WIDTH + (horPos+j)];
 		}
 	}
 	return block;
 }
 
 uint8_t* b_and_k(uint8_t *b, uint8_t *k) {
-	uint8_t *bAndK= (uint8_t*) malloc(BLOCK_WIDTH*BLOCK_HEIGHT);
-	for (int i = 0; i < BLOCK_HEIGHT*BLOCK_WIDTH; ++i) {
+	uint8_t *bAndK = (uint8_t*) malloc(BLOCK_SIZE);
+	for (int i = 0; i < BLOCK_SIZE; ++i) {
 		bAndK[i] = b[i] & k[i];
 	}
 	return bAndK;
@@ -164,7 +161,7 @@ uint8_t* b_and_k(uint8_t *b, uint8_t *k) {
 
 void complement(uint8_t *data, uint8_t *key, int blockIndex) {
 	uint8_t *block = extract(data, blockIndex);
-	int sumBAndK = sum(b_and_k(block, key));
+	int sumBAndK 	= sum(b_and_k(block, key));
 	srand(time(0));
 	int i, j, index;
 	int sumK = sum(key);
@@ -173,11 +170,12 @@ void complement(uint8_t *data, uint8_t *key, int blockIndex) {
 		i = rand() % BLOCK_HEIGHT;
 		j = rand() % BLOCK_WIDTH;
 		index = i*BLOCK_WIDTH + j;
-	} while(key[index] != 1 || block[index] != 0 && sumBAndK == 1 || block[index] != 1 && sumBAndK == sumK-1);	
+	} while (key[index] != 1 || block[index] != 0 
+			  && sumBAndK == 1 || block[index] != 1 && sumBAndK == sumK-1);	
 
    int maxBlockHor = DATA_WIDTH / BLOCK_WIDTH; 
-	int verPos = BLOCK_HEIGHT * (blockIndex / maxBlockHor) + i; 
-	int horPos = BLOCK_WIDTH * (blockIndex % maxBlockHor) + j; 
+	int verPos 		 = BLOCK_HEIGHT * (blockIndex / maxBlockHor) + i; 
+	int horPos 		 = BLOCK_WIDTH * (blockIndex % maxBlockHor) + j; 
    data[verPos*DATA_WIDTH + horPos] ^= 1;
 	return;
 }
@@ -190,7 +188,7 @@ void encode(uint8_t *data, uint8_t *key, uint8_t *bMessage) {
 	memcpy(message+16, bMessage, MESSAGE_LEN);
 	
 	int maxBlock = DATA_HEIGHT/BLOCK_HEIGHT * DATA_WIDTH/BLOCK_WIDTH; 
-	int sumK = sum(key);
+	int sumK 	 = sum(key);
 	int sumBAndK;
 	for (int bitIndex = 0, blockIndex = -1; bitIndex < sizeof(message); ++bitIndex) {
 		uint8_t *block;
@@ -200,7 +198,7 @@ void encode(uint8_t *data, uint8_t *key, uint8_t *bMessage) {
 				printf("The message is too long.\n");
 				return;
 			}
-			block = extract(data, blockIndex);
+			block 	= extract(data, blockIndex);
 			sumBAndK = sum(b_and_k(block, key));
 		} while (sumBAndK <= 0 || sumBAndK >= sumK);
 
@@ -216,16 +214,16 @@ void encode(uint8_t *data, uint8_t *key, uint8_t *bMessage) {
 }
 
 char* decode(uint8_t *data, uint8_t *key) {
-	int maxBlock = DATA_WIDTH/BLOCK_WIDTH * DATA_HEIGHT/BLOCK_HEIGHT;
-	uint8_t *block;
+	int maxBlock   = DATA_WIDTH/BLOCK_WIDTH * DATA_HEIGHT/BLOCK_HEIGHT;
 	int blockIndex = -1;
+	uint8_t *block;
 	int sumBAndK;
 
 	uint16_t MESSAGE_LEN = 0;
 	for (int i = 0; i < 16; ++i) {
 		do {
 			++blockIndex;
-			block = extract(data, blockIndex);
+			block 	= extract(data, blockIndex);
 			sumBAndK = sum(b_and_k(block, key));
 		} while(sumBAndK <= 0 || sumBAndK >= sum(key));
 		MESSAGE_LEN |= (sumBAndK % 2) << (15-i % 16);
@@ -238,7 +236,7 @@ char* decode(uint8_t *data, uint8_t *key) {
 	for (int bitIndex = 0; bitIndex < MESSAGE_LEN; ++bitIndex) {
 		do {
 			++blockIndex;
-			block = extract(data, blockIndex);
+			block    = extract(data, blockIndex);
 			sumBAndK = sum(b_and_k(block, key));
 		} while (sumBAndK <= 0 || sumBAndK >= sum(key));
 		message[bitIndex/8] |= (sumBAndK % 2) << (7 - bitIndex%8);
@@ -266,7 +264,7 @@ uint8_t* get_key(char *arg) {
 		return NULL;
 	}
 	BLOCK_HEIGHT = keyLen / BLOCK_WIDTH;
-	BLOCK_SIZE = BLOCK_HEIGHT * BLOCK_WIDTH;
+	BLOCK_SIZE   = BLOCK_HEIGHT * BLOCK_WIDTH;
 
 	uint8_t *key = (uint8_t*) malloc(keyLen);
 	for (int i = 0; i < keyLen; ++i) {
