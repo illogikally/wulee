@@ -5,62 +5,67 @@
 #include <stdint.h>
 #include <math.h>
 
+typedef uint8_t u8;
+typedef uint16_t u16;
+typedef uint32_t u32;
+typedef uint64_t u64;
+
 #pragma pack(2)
 typedef struct {
-   uint16_t bfType;
-   uint32_t bfSize;
-   uint16_t bfReserved1;
-   uint16_t bfReserved2;
-   uint32_t bfOffBits;
-   uint32_t biSize;
-   uint32_t biWidth;
-   uint32_t biHeight;
-   uint16_t biPlanes;
-   uint16_t biBitCount;
-   uint32_t biCompression;
-   uint32_t biSizeImage;
-   uint32_t biXPelsPerMeter;
-   uint32_t biYPelsPerMeter;
-   uint32_t biClrUsed;
-   uint32_t biClrImportant;
-   uint64_t ClrPallete;
+   u16 bfType;
+   u32 bfSize;
+   u16 bfReserved1;
+   u16 bfReserved2;
+   u32 bfOffBits;
+   u32 biSize;
+   u32 biWidth;
+   u32 biHeight;
+   u16 biPlanes;
+   u16 biBitCount;
+   u32 biCompression;
+   u32 biSizeImage;
+   u32 biXPelsPerMeter;
+   u32 biYPelsPerMeter;
+   u32 biClrUsed;
+   u32 biClrImportant;
+   u64 ClrPallete;
 } BitmapHeader;
 
 BitmapHeader header;
 int          BLOCK_W, BLOCK_H, BLOCK_SIZE;
 int          DATA_W, DATA_H, DATA_SIZE;
 int          SUM_K;
-uint16_t     MESSAGE_LEN;
+u16          MESSAGE_LEN;
 
-int sum(uint8_t *);
+int  sum(u8 *);
 void prints(char *);
-void write_image(uint8_t *);
-void complement(uint8_t *, uint8_t *, int);
-void encode(uint8_t *, uint8_t *, uint8_t *);
-char *decode(uint8_t *, uint8_t *);
-uint8_t *read_image(char *);
-uint8_t *string_to_binary(char *);
-uint8_t *extract(uint8_t *, int);
-uint8_t *b_and_k(uint8_t *, uint8_t *);
-uint8_t *get_key(char *);
+void write_image(u8 *);
+void complement(u8 **, u8 *);
+void encode(u8 *, u8 *, u8 *);
+char *decode(u8 *, u8 *);
+u8   *read_image(char *);
+u8   *string_to_binary(char *);
+u8   **extract(u8 *, int);
+u8   *b_and_k(u8 **, u8 *);
+u8   *get_key(char *);
 
-int main(int argc, uint8_t **argv) {
+int main(int argc, u8 **argv) {
    if (argc == 3 || argc == 4) {
-      uint8_t *data = read_image(argv[1]);
-      uint8_t *key = get_key(argv[2]);
+      u8 *data = read_image(argv[1]);
+      u8 *key = get_key(argv[2]);
 
       if (argc == 3) {
          prints(decode(data, key));
       } 
       else {
-         uint8_t *message = string_to_binary(argv[3]);
+         u8 *message = string_to_binary(argv[3]);
          encode(data, key, message);
       }
    } 
    else {
       printf("Usage: \n\tPATH KEYSTRING [MESSAGE]\n \
-            \n  - PATH: Path to cover/stego-image \
-            \n  - KEYSTRING: Comma-separated width-suffix keystring. Ex: \"3,000111101010\" \
+            \n  - PATH: Path to cover/stego-image (Must be a monochrome bitmap) \
+            \n  - KEYSTRING: Comma-separated width-suffix keystring (Sum of the key must be at least 3). Ex: \"3,000111101010\" \
             \n  - MESSAGE: Message to conceal\n");
    }
    return 0;
@@ -74,16 +79,16 @@ void prints(char *s) {
    return;
 }
 
-uint8_t *read_image(char *path) {
+u8 *read_image(char *path) {
    FILE *img = fopen(path, "rb");
    if (img == NULL) {
-      printf("Can't open the image, make sure the path is correct\n");
+      printf("Bitmap path error: Can't open the image, make sure the path is correct\n");
       exit(-1);
    }
 
    fread(&header, sizeof(BitmapHeader), 1, img);
    if (header.biBitCount != 1) {
-      printf("The given file is not a monochrome bitmap\n");
+      printf("Bitmap path error: The given file is not a monochrome bitmap\n");
       exit(-1);
    }
 
@@ -91,9 +96,9 @@ uint8_t *read_image(char *path) {
    DATA_H        = header.biHeight;
    DATA_W        = rowSize * 8;
    DATA_SIZE     = DATA_H * DATA_W;
-   uint8_t *data = (uint8_t *) malloc(DATA_SIZE);
-   uint8_t dataByte[DATA_SIZE/8];
+   u8 *data = (u8 *) malloc(DATA_SIZE);
 
+   u8 dataByte[DATA_SIZE/8];
    fread(dataByte, DATA_SIZE/8, 1, img);
 
    for (int i = 0; i < DATA_SIZE; ++i) {
@@ -103,24 +108,24 @@ uint8_t *read_image(char *path) {
    return data;
 }
 
-void write_image(uint8_t *data) {
-   FILE *img = fopen("output.bmp", "wb");
-   uint8_t *dataByte = (uint8_t *) calloc(DATA_SIZE/8, 1);
+void write_image(u8 *data) {
+   FILE *img = fopen("stego.bmp", "wb");
+   u8 dataByte[DATA_SIZE/8]; 
+   memset(dataByte, 0, DATA_SIZE/8);
 
    for (int i = 0; i < DATA_SIZE; ++i) {
       dataByte[i/8] |= data[i] << (7 - i%8);
    }
 
    fwrite(&header, sizeof(BitmapHeader), 1, img);
-   fwrite(dataByte, sizeof(uint8_t), DATA_SIZE/8, img);
+   fwrite(&dataByte, sizeof(u8), DATA_SIZE/8, img);
    fclose(img);
-   free(dataByte);
    return;
 }
 
-uint8_t *string_to_binary(char *messageString) {
+u8 *string_to_binary(char *messageString) {
    MESSAGE_LEN = strlen(messageString) * 8;
-   uint8_t *message = (uint8_t *) malloc(MESSAGE_LEN);
+   u8 *message = (u8 *) malloc(MESSAGE_LEN);
 
    for (int i = 0; i < MESSAGE_LEN; ++i) {
       message[i] = (messageString[i/8] >> (7 - i%8)) & 1;
@@ -128,7 +133,7 @@ uint8_t *string_to_binary(char *messageString) {
    return message;
 }
 
-int sum(uint8_t *block) {
+int sum(u8 *block) {
    int sum = 0;
    for (int i = 0; i < BLOCK_SIZE; ++i) {
       sum += block[i];
@@ -137,77 +142,71 @@ int sum(uint8_t *block) {
    return sum;
 }
 
-uint8_t *extract(uint8_t *data, int blockIndex) {
+u8 **extract(u8 *data, int blockIndex) {
    int maxBlockHor = DATA_W / BLOCK_W;
    int verPos = BLOCK_H * (blockIndex / maxBlockHor);
    int horPos = BLOCK_W * (blockIndex % maxBlockHor);
-   uint8_t *block = (uint8_t *) malloc(BLOCK_SIZE);
 
-   for (int i = 0; i < BLOCK_H; ++i) {
-      for (int j = 0; j < BLOCK_W; ++j) {
-         block[i*BLOCK_W + j] = data[(verPos+i)*DATA_W + (horPos+j)];
-      }
+   u8 **block = (u8 **) malloc(BLOCK_H);
+   for (int i = 0; i < BLOCK_H; i++) {
+      block[i] = &data[(verPos+i)*DATA_W + horPos];
    }
+
    return block;
 }
 
-uint8_t *b_and_k(uint8_t *b, uint8_t *k) {
-   uint8_t *bAndK = (uint8_t *) malloc(BLOCK_SIZE);
-   for (int i = 0; i < BLOCK_SIZE; ++i) {
-      bAndK[i] = b[i] & k[i];
+u8 *b_and_k(u8 **b, u8 *k) {
+   u8 *bAndK = (u8 *) malloc(BLOCK_SIZE);
+   for (int i = 0; i < BLOCK_H; ++i) {
+      for (int j = 0; j < BLOCK_W; ++j) {
+         bAndK[i*BLOCK_W + j] = b[i][j] & k[i*BLOCK_W + j];
+      }
    }
    return bAndK;
 }
 
-void complement(uint8_t *data, uint8_t *key, int blockIndex) {
-   uint8_t *block = extract(data, blockIndex);
+void complement(u8 **block, u8 *key) {
    int sumBAndK = sum(b_and_k(block, key));
    srand(time(0));
-   int i, j, index;
-   int sumK = SUM_K;
+   int i, j;
 
    do {
       i = rand() % BLOCK_H;
       j = rand() % BLOCK_W;
-      index = i*BLOCK_W + j;
-   } while (key[index] != 1 
-            || block[index] != 0 && sumBAndK == 1 
-            || block[index] != 1 && sumBAndK == sumK-1);
+   } while (key[i*BLOCK_W + j] != 1 
+            || block[i][j] != 0 && sumBAndK == 1 
+            || block[i][j] != 1 && sumBAndK == SUM_K-1);
 
-   int maxBlockHor = DATA_W / BLOCK_W;
-   int verPos = BLOCK_H * (blockIndex / maxBlockHor) + i;
-   int horPos = BLOCK_W * (blockIndex % maxBlockHor) + j;
-   data[verPos*DATA_W + horPos] ^= 1;
+   block[i][j] ^= 1;
    free(block);
    return;
 }
 
-void encode(uint8_t *data, uint8_t *key, uint8_t *bMessage) {
-   uint8_t message[MESSAGE_LEN + 16];
+void encode(u8 *data, u8 *key, u8 *bMessage) {
+   u8 message[MESSAGE_LEN+16];
    for (int i = 0; i < 16; ++i) {
       message[i] = (MESSAGE_LEN >> (15 - i)) & 1;
    }
-   memcpy(message + 16, bMessage, MESSAGE_LEN);
+   memcpy(message+16, bMessage, MESSAGE_LEN);
 
    int maxBlock = DATA_H/BLOCK_H * DATA_W/BLOCK_W;
-   int sumK = SUM_K;
    int sumBAndK;
    for (int bitIndex = 0, blockIndex = -1; bitIndex < sizeof(message); ++bitIndex) {
-      uint8_t *block;
+      u8 **block;
       do {
          ++blockIndex;
          if (blockIndex >= maxBlock) {
-            printf("The message is too long\n");
+            printf("Encode failed: The message is too long\n");
             return;
          }
          block = extract(data, blockIndex);
          sumBAndK = sum(b_and_k(block, key));
-      } while (sumBAndK <= 0 || sumBAndK >= sumK);
+      } while (sumBAndK <= 0 || sumBAndK >= SUM_K);
 
       if (sumBAndK % 2 == message[bitIndex])
          continue;
       else
-         complement(data, key, blockIndex);
+         complement(block, key);
    }
 
    write_image(data);
@@ -215,13 +214,13 @@ void encode(uint8_t *data, uint8_t *key, uint8_t *bMessage) {
    return;
 }
 
-char *decode(uint8_t *data, uint8_t *key) {
+char *decode(u8 *data, u8 *key) {
    int maxBlock = DATA_W/BLOCK_W * DATA_H/BLOCK_H;
    int blockIndex = -1;
-   uint8_t *block;
+   u8 **block;
    int sumBAndK;
 
-   uint16_t MESSAGE_LEN = 0;
+   u16 MESSAGE_LEN = 0;
    for (int i = 0; i < 16; ++i) {
       do {
          ++blockIndex;
@@ -232,7 +231,7 @@ char *decode(uint8_t *data, uint8_t *key) {
    }
 
    if (MESSAGE_LEN > maxBlock)
-      return "Wrong image\n";
+      return "Decode failed: Message not found\n";
 
    char *message = (char *) calloc(MESSAGE_LEN/8, 1);
    for (int bitIndex = 0; bitIndex < MESSAGE_LEN; ++bitIndex) {
@@ -249,11 +248,11 @@ char *decode(uint8_t *data, uint8_t *key) {
    return message;
 }
 
-uint8_t *get_key(char *arg) {
+u8 *get_key(char *arg) {
    int cPos = 0;
    while (arg[cPos] != ',') {
       if (cPos >= strlen(arg)) {
-         printf("Keystring is missing the comma\n");
+         printf("Keystring error: Keystring is missing the comma\n");
          exit(-2);
       }
       ++cPos;
@@ -265,24 +264,24 @@ uint8_t *get_key(char *arg) {
 
    int keyLen = strlen(arg) - cPos - 1;
    if (BLOCK_W > keyLen || keyLen % BLOCK_W != 0) {
-      printf("Invalid key width\n");
+      printf("Keystring error: Invalid key width\n");
       exit(-2);
    }
    BLOCK_H = keyLen / BLOCK_W;
    BLOCK_SIZE = BLOCK_H * BLOCK_W;
 
-   uint8_t *key = (uint8_t *) malloc(keyLen);
+   u8 *key = (u8 *) malloc(keyLen);
    for (int i = 0; i < keyLen; ++i) {
       key[i] = arg[cPos+i+1] - '0';
       if (key[i] != 0 && key[i] != 1) {
-         printf("Key must only contain 0 and 1\n");
+         printf("Keystring error: Key must only contain 0 and 1\n");
          exit(-2);
       }
       SUM_K += key[i];
    }
 
    if (SUM_K < 3) {
-      printf("Key must have at least three bit 1\n");
+      printf("Keystring error: Sum of the key must be at least 3\n");
       exit(-2);
    }
 
