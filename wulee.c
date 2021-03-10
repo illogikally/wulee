@@ -5,13 +5,14 @@
 #include <stdint.h>
 #include <math.h>
 
-typedef uint8_t u8;
+typedef uint8_t  u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
 
 #pragma pack(2)
-typedef struct {
+typedef struct 
+{
    u16 bfType;
    u32 bfSize;
    u16 bfReserved1;
@@ -49,13 +50,14 @@ u8   **extract(u8 *, int);
 u8   *b_and_k(u8 **, u8 *);
 u8   *get_key(char *);
 
-int main(int argc, u8 **argv) {
+int main(int argc, u8 **argv) 
+{
    if (argc == 3 || argc == 4) {
       u8 *data = read_image(argv[1]);
       u8 *key = get_key(argv[2]);
 
-      if (argc == 3) {
-         prints(decode(data, key));
+      if (argc == 3) { 
+         prints(decode(data, key)); 
       } 
       else {
          u8 *message = string_to_binary(argv[3]);
@@ -65,21 +67,24 @@ int main(int argc, u8 **argv) {
    else {
       printf("Usage: \n\tPATH KEYSTRING [MESSAGE]\n \
             \n  - PATH: Path to cover/stego-image (Must be a monochrome bitmap) \
-            \n  - KEYSTRING: Comma-separated width-suffix keystring (Sum of the key must be at least 3). Ex: \"3,000111101010\" \
+            \n  - KEYSTRING: Comma-separated width-suffix keystring \
+                  (Sum of the key must be at least 3). Ex: \"3,000111101010\" \
             \n  - MESSAGE: Message to conceal\n");
    }
    return 0;
 }
 
-void prints(char *s) {
-   for (int i = 0; i < strlen(s); ++i) {
+void prints(char *s) 
+{
+   for (int i = 0; i < strlen(s); i++) {
       printf("%c", s[i]);
    }
    printf("\n");
    return;
 }
 
-u8 *read_image(char *path) {
+u8 *read_image(char *path) 
+{
    FILE *img = fopen(path, "rb");
    if (img == NULL) {
       printf("Bitmap path error: Can't open the image, make sure the path is correct\n");
@@ -92,30 +97,31 @@ u8 *read_image(char *path) {
       exit(-1);
    }
 
-   int rowSize   = (header.biWidth + 31) / 32 * 4;
-   DATA_H        = header.biHeight;
-   DATA_W        = rowSize * 8;
-   DATA_SIZE     = DATA_H * DATA_W;
-   u8 *data = (u8 *) malloc(DATA_SIZE);
+   int rowSize = (header.biWidth + 31) / 32 * 4;
+   DATA_H      = header.biHeight;
+   DATA_W      = rowSize * 8;
+   DATA_SIZE   = DATA_H * DATA_W;
+   u8 *data    = (u8 *) malloc(DATA_SIZE);
 
    u8 dataByte[DATA_SIZE/8];
    fread(dataByte, DATA_SIZE/8, 1, img);
 
-   for (int i = 0; i < DATA_SIZE; ++i) {
+   for (int i = 0; i < DATA_SIZE; i++) {
       data[i] = (dataByte[i/8] >> (7 - i%8)) & 1;
    }
    fclose(img);
    return data;
 }
 
-void write_image(u8 *data) {
+void write_image(u8 *data) 
+{
    FILE *img = fopen("stego.bmp", "wb");
    u8 dataByte[DATA_SIZE/8]; 
    memset(dataByte, 0, DATA_SIZE/8);
 
-   for (int i = 0; i < DATA_SIZE; ++i) {
+   for (int i = 0; i < DATA_SIZE; i++) {
       dataByte[i/8] |= data[i] << (7 - i%8);
-   }
+}
 
    fwrite(&header, sizeof(BitmapHeader), 1, img);
    fwrite(&dataByte, sizeof(u8), DATA_SIZE/8, img);
@@ -123,49 +129,54 @@ void write_image(u8 *data) {
    return;
 }
 
-u8 *string_to_binary(char *messageString) {
+u8 *string_to_binary(char *messageString) 
+{
    MESSAGE_LEN = strlen(messageString) * 8;
    u8 *message = (u8 *) malloc(MESSAGE_LEN);
 
-   for (int i = 0; i < MESSAGE_LEN; ++i) {
+   for (int i = 0; i < MESSAGE_LEN; i++) {
       message[i] = (messageString[i/8] >> (7 - i%8)) & 1;
    }
    return message;
 }
 
-int sum(u8 *block) {
+int sum(u8 *block) 
+{
    int sum = 0;
-   for (int i = 0; i < BLOCK_SIZE; ++i) {
+   for (int i = 0; i < BLOCK_SIZE; i++) {
       sum += block[i];
    }
    free(block);
    return sum;
 }
 
-u8 **extract(u8 *data, int blockIndex) {
+u8 **extract(u8 *data, int blockIndex) 
+{
    int maxBlockHor = DATA_W / BLOCK_W;
-   int verPos = BLOCK_H * (blockIndex / maxBlockHor);
-   int horPos = BLOCK_W * (blockIndex % maxBlockHor);
+   int verPos      = BLOCK_H * (blockIndex / maxBlockHor);
+   int horPos      = BLOCK_W * (blockIndex % maxBlockHor);
 
    u8 **block = (u8 **) malloc(BLOCK_H);
    for (int i = 0; i < BLOCK_H; i++) {
-      block[i] = &data[(verPos+i)*DATA_W + horPos];
+      block[i] = &data[(verPos + i)*DATA_W + horPos];
    }
 
    return block;
 }
 
-u8 *b_and_k(u8 **b, u8 *k) {
+u8 *b_and_k(u8 **b, u8 *k) 
+{
    u8 *bAndK = (u8 *) malloc(BLOCK_SIZE);
-   for (int i = 0; i < BLOCK_H; ++i) {
-      for (int j = 0; j < BLOCK_W; ++j) {
+   for (int i = 0; i < BLOCK_H; i++) {
+      for (int j = 0; j < BLOCK_W; j++) {
          bAndK[i*BLOCK_W + j] = b[i][j] & k[i*BLOCK_W + j];
       }
    }
    return bAndK;
 }
 
-void complement(u8 **block, u8 *key) {
+void complement(u8 **block, u8 *key) 
+{
    int sumBAndK = sum(b_and_k(block, key));
    srand(time(0));
    int i, j;
@@ -182,19 +193,20 @@ void complement(u8 **block, u8 *key) {
    return;
 }
 
-void encode(u8 *data, u8 *key, u8 *bMessage) {
+void encode(u8 *data, u8 *key, u8 *bMessage) 
+{
    u8 message[MESSAGE_LEN+16];
-   for (int i = 0; i < 16; ++i) {
+   for (int i = 0; i < 16; i++) {
       message[i] = (MESSAGE_LEN >> (15 - i)) & 1;
    }
    memcpy(message+16, bMessage, MESSAGE_LEN);
 
    int maxBlock = DATA_H/BLOCK_H * DATA_W/BLOCK_W;
    int sumBAndK;
-   for (int bitIndex = 0, blockIndex = -1; bitIndex < sizeof(message); ++bitIndex) {
+   for (int bitIndex = 0, blockIndex = -1; bitIndex < sizeof(message); bitIndex++) {
       u8 **block;
       do {
-         ++blockIndex;
+         blockIndex++;
          if (blockIndex >= maxBlock) {
             printf("Encode failed: The message is too long\n");
             return;
@@ -214,16 +226,17 @@ void encode(u8 *data, u8 *key, u8 *bMessage) {
    return;
 }
 
-char *decode(u8 *data, u8 *key) {
-   int maxBlock = DATA_W/BLOCK_W * DATA_H/BLOCK_H;
+char *decode(u8 *data, u8 *key) 
+{
+   int maxBlock   = DATA_W/BLOCK_W * DATA_H/BLOCK_H;
    int blockIndex = -1;
-   u8 **block;
+   u8  **block;
    int sumBAndK;
 
    u16 MESSAGE_LEN = 0;
-   for (int i = 0; i < 16; ++i) {
+   for (int i = 0; i < 16; i++) {
       do {
-         ++blockIndex;
+         blockIndex++;
          block = extract(data, blockIndex);
          sumBAndK = sum(b_and_k(block, key));
       } while (sumBAndK <= 0 || sumBAndK >= SUM_K);
@@ -234,9 +247,9 @@ char *decode(u8 *data, u8 *key) {
       return "Decode failed: Message not found\n";
 
    char *message = (char *) calloc(MESSAGE_LEN/8, 1);
-   for (int bitIndex = 0; bitIndex < MESSAGE_LEN; ++bitIndex) {
+   for (int bitIndex = 0; bitIndex < MESSAGE_LEN; bitIndex++) {
       do {
-         ++blockIndex;
+         blockIndex++;
          if (blockIndex >= maxBlock) {
             return message;
          }
@@ -248,17 +261,18 @@ char *decode(u8 *data, u8 *key) {
    return message;
 }
 
-u8 *get_key(char *arg) {
+u8 *get_key(char *arg) 
+{
    int cPos = 0;
    while (arg[cPos] != ',') {
       if (cPos >= strlen(arg)) {
          printf("Keystring error: Keystring is missing the comma\n");
          exit(-2);
       }
-      ++cPos;
+      cPos++;
    }
 
-   for (int i = 0; i < cPos; ++i) {
+   for (int i = 0; i < cPos; i++) {
       BLOCK_W += (arg[i] - '0') * pow(10, cPos-i-1);
    }
 
@@ -267,11 +281,11 @@ u8 *get_key(char *arg) {
       printf("Keystring error: Invalid key width\n");
       exit(-2);
    }
-   BLOCK_H = keyLen / BLOCK_W;
+   BLOCK_H    = keyLen / BLOCK_W;
    BLOCK_SIZE = BLOCK_H * BLOCK_W;
 
    u8 *key = (u8 *) malloc(keyLen);
-   for (int i = 0; i < keyLen; ++i) {
+   for (int i = 0; i < keyLen; i++) {
       key[i] = arg[cPos+i+1] - '0';
       if (key[i] != 0 && key[i] != 1) {
          printf("Keystring error: Key must only contain 0 and 1\n");
